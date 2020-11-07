@@ -582,21 +582,13 @@ public class SQLStatementParser extends SQLParser {
                 stmt.setParent(parent);
                 continue;
             }
-    
-            if (lexer.token() == Token.ELSEIF
-                    && parent instanceof SQLIfStatement) {
-                break;
-            }
-            
+
             int size = statementList.size();
             if (parseStatementListDialect(statementList)) {
                 if (parent != null) {
                     for (int j = size; j < statementList.size(); ++j) {
                         SQLStatement dialectStmt = statementList.get(j);
                         dialectStmt.setParent(parent);
-                    }
-                    if (parent instanceof SQLCreateTriggerStatement) {
-                        return;
                     }
                 }
 
@@ -3851,7 +3843,7 @@ public class SQLStatementParser extends SQLParser {
             stmt.setWhen(condition);
         }
 
-        List<SQLStatement> body = this.parseStatementList(stmt);
+        List<SQLStatement> body = this.parseStatementList();
         if (body == null || body.isEmpty()) {
             throw new ParserException("syntax error");
         }
@@ -6556,6 +6548,18 @@ public class SQLStatementParser extends SQLParser {
             } else if (lexer.token() == Token.ORDER) {
                 lexer.nextToken();
                 stmt.setOrder(Boolean.TRUE);
+                continue;
+            } else if (lexer.identifierEquals(FnvHash.Constants.RESTART)) {
+                lexer.nextToken();
+                stmt.setRestart(true);
+
+                if (lexer.token == Token.WITH || lexer.token == Token.EQ) {
+                    lexer.nextToken();
+                    stmt.setRestartWith(this.exprParser.primary());
+                } else if(lexer.token == LITERAL_INT) {
+                    stmt.setRestartWith(this.exprParser.primary());
+                }
+
                 continue;
             } else if (lexer.identifierEquals("NOORDER")) {
                 lexer.nextToken();
