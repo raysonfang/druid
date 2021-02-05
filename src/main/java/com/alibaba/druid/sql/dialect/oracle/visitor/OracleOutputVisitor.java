@@ -109,7 +109,26 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
     public boolean visit(OracleAnalyticWindowing x) {
         print0(x.getType().name().toUpperCase());
         print(' ');
-        x.getExpr().accept(this);
+
+        SQLExpr expr = x.getExpr();
+
+        if (expr instanceof SQLBetweenExpr && x.getParent() instanceof SQLOver) {
+            SQLOver over = (SQLOver) x.getParent();
+            SQLBetweenExpr betweenExpr = (SQLBetweenExpr) expr;
+            SQLOver.WindowingBound beginBound = over.getWindowingBetweenBeginBound();
+            if (beginBound != null) {
+                print0(ucase ? " BETWEEN " : " between ");
+                betweenExpr.getBeginExpr().accept(this);
+                print(' ');
+                print0(ucase ? beginBound.name : beginBound.name_lower);
+                print0(ucase ? " AND " : " and ");
+                betweenExpr.getEndExpr().accept(this);
+                return false;
+            }
+        }
+
+        expr.accept(this);
+
         return false;
     }
 
@@ -252,7 +271,11 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
 
             if (right instanceof SQLJoinTableSource) {
                 print('(');
+                incrementIndent();
+                println();
                 right.accept(this);
+                decrementIndent();
+                println();
                 print(')');
             } else {
                 right.accept(this);
@@ -1250,7 +1273,7 @@ public class OracleOutputVisitor extends SQLASTOutputVisitor implements OracleAS
 
                 print0(ucase ? "RENAME " : "rename ");
                 x.getName().accept(this);
-                print0(ucase ? " TO " : "to ");
+                print0(ucase ? " TO " : " to ");
                 to.accept(this);
                 return false;
             }

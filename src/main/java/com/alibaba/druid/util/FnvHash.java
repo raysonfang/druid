@@ -1115,5 +1115,9 @@ public final class FnvHash {
         long TRANSFORM = fnv1a_64_lower("TRANSFORM");
         long NESTED = fnv1a_64_lower("NESTED");
         long RESTART = fnv1a_64_lower("RESTART");
+
+        long ASOF = fnv1a_64_lower("ASOF");
+        long JSON_SET = fnv1a_64_lower("JSON_SET");
+        long JSONB_SET = fnv1a_64_lower("JSONB_SET");
     }
 }

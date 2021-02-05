@@ -30,6 +30,7 @@ import com.alibaba.druid.sql.dialect.hive.stmt.HiveCreateTableStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlPrimaryKey;
 import com.alibaba.druid.sql.dialect.mysql.ast.expr.MySqlOrderingExpr;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.*;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsNewExpr;
 import com.alibaba.druid.sql.dialect.oracle.ast.OracleSegmentAttributes;
 import com.alibaba.druid.sql.dialect.oracle.ast.expr.OracleCursorExpr;
 import com.alibaba.druid.sql.dialect.oracle.ast.expr.OracleDatetimeExpr;
@@ -2058,6 +2059,10 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
 
         print(')');
 
+        if (x.isIgnoreNulls()) {
+            print0(ucase ? " IGNORE NULLS" : " ignore nulls");
+        }
+
         SQLKeep keep = x.getKeep();
         if (keep != null) {
             print(' ');
@@ -2939,7 +2944,9 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         }
 
         SQLSelect select = stmt.getSelect();
-        this.visit(select);
+        if (select != null) {
+            this.visit(select);
+        }
 
         return false;
     }
@@ -3505,6 +3512,13 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
     public boolean visit(SQLCreateTableStatement x) {
         printCreateTable(x, true);
 
+        SQLPartitionBy partitionBy = x.getPartitioning();
+        if (partitionBy != null) {
+            println();
+            print0(ucase ? "PARTITION BY " : "partition by ");
+            partitionBy.accept(this);
+        }
+
         List<SQLAssignItem> options = x.getTableOptions();
         if (options.size() > 0) {
             println();
@@ -3518,6 +3532,12 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             println();
             print0(ucase ? "TABLESPACE " : "tablespace ");
             tablespace.accept(this);
+        }
+
+        SQLExpr engine = x.getEngine();
+        if (engine != null) {
+            print0(ucase ? " ENGINE = " : " engine = ");
+            engine.accept(this);
         }
 
         return false;
@@ -3955,6 +3975,11 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             print(',');
         } else {
             println();
+
+            boolean asof = x.isAsof();
+            if (asof) {
+                print0(ucase ? " ASOF ": " asof");
+            }
 
             if (x.isNatural()) {
                 print0(ucase ? "NATURAL " : "natural ");
@@ -5273,6 +5298,16 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         x.getExpr().accept(this);
         this.indentCount--;
         print(')');
+
+        Boolean enforced = x.getEnforced();
+        if (enforced != null) {
+            if (enforced.booleanValue()) {
+                print0(ucase ? " ENFORCED" : " enforced");
+            } else {
+                print0(ucase ? " NOT ENFORCED" : " not enforced");
+            }
+        }
+
         return false;
     }
 
@@ -5378,6 +5413,11 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
     @Override
     public boolean visit(SQLAlterTableStatement x) {
         print0(ucase ? "ALTER TABLE " : "alter table ");
+
+        if (x.isIfExists()) {
+            print0(ucase ? "IF EXISTS " : "if exists ");
+        }
+
         printTableSourceExpr(x.getName());
         this.indentCount++;
         for (int i = 0; i < x.getItems().size(); ++i) {
@@ -7934,6 +7974,17 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             printExpr(rowCount, parameterized);
         }
 
+        final List<SQLExpr> by = x.getBy();
+        if (by != null) {
+            print0(ucase ? " BY " : " by ");
+            for (int i = 0; i < by.size(); i++) {
+                if (i != 0) {
+                    print0(", ");
+                }
+                by.get(i).accept(this);
+            }
+        }
+
         return false;
     }
 
@@ -8992,6 +9043,34 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             dataType.accept(this);
         }
 
+        return false;
+    }
+
+    public boolean visit(SQLAlterTableMergePartition x) {
+        print0(ucase ? "MERGE " : "merge ");
+        if (x.isIfExists()) {
+            print0(ucase ? "IF EXISTS " : "if exists ");
+        }
+        println();
+        printlnAndAccept(x.getPartitions(), ", ");
+        println();
+        print0(ucase ? "OVERWRITE" : "overwrite");
+        println();
+        x.getOverwritePartition().accept(this);
+        return false;
+    }
+
+    public boolean visit(SQLPartitionSpec x) {
+        print0(ucase ? "PARTITION (" : "partition (");
+        printAndAccept(x.getItems(), ", ");
+        print(')');
+        return false;
+    }
+
+    public boolean visit(SQLPartitionSpec.Item x) {
+        x.getColumn().accept(this);
+        print0(" = ");
+        x.getValue().accept(this);
         return false;
     }
 
@@ -10371,6 +10450,13 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             print0(ucase ? " BUCKETS" : " buckets");
         }
 
+        SQLExprTableSource like = x.getLike();
+        if (like != null) {
+            println();
+            print0(ucase ? "LIKE " : "like ");
+            like.accept(this);
+        }
+
         SQLExpr storedAs = x.getStoredAs();
         if (storedAs != null) {
             println();
@@ -10413,13 +10499,6 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
 
             println();
             visit(select);
-        }
-
-        SQLExprTableSource like = x.getLike();
-        if (like != null) {
-            println();
-            print0(ucase ? "LIKE " : "like ");
-            like.accept(this);
         }
     }
 
@@ -10915,6 +10994,11 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
 
         printAndAccept(x.getThreadIds(), ", ");
         return false;
+    }
+
+    public boolean visit(OdpsNewExpr x) {
+        print0(ucase ? "NEW " : "new ");
+        return super.visit((SQLMethodInvokeExpr) x);
     }
 
     public char getNameQuote() {

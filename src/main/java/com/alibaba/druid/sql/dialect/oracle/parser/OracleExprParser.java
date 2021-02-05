@@ -34,6 +34,7 @@ import com.alibaba.druid.util.FnvHash;
 
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
 
 public class OracleExprParser extends SQLExprParser {
 
@@ -121,11 +122,13 @@ public class OracleExprParser extends SQLExprParser {
     
     protected boolean isCharType(long hash) {
         return hash == FnvHash.Constants.CHAR
+                || hash == FnvHash.Constants.CHARACTER
                 || hash == FnvHash.Constants.NCHAR
                 || hash == FnvHash.Constants.VARCHAR
                 || hash == FnvHash.Constants.VARCHAR2
                 || hash == FnvHash.Constants.NVARCHAR
                 || hash == FnvHash.Constants.NVARCHAR2
+                || hash == FnvHash.Constants.CHARACTER
                 ;
     }
 
@@ -221,8 +224,43 @@ public class OracleExprParser extends SQLExprParser {
             
             return timestamp;
         }
+
+        if ("national".equalsIgnoreCase(typeName)
+                && isCharType(lexer.hash_lower())) {
+            typeName += ' ' + lexer.stringVal();
+            lexer.nextToken();
+
+            if (lexer.identifierEquals("VARYING")) {
+                typeName += ' ' + lexer.stringVal();
+                lexer.nextToken();
+            }
+
+            SQLCharacterDataType charType = new SQLCharacterDataType(typeName);
+
+            if (lexer.token() == Token.LPAREN) {
+                lexer.nextToken();
+                SQLExpr arg = this.expr();
+                arg.setParent(charType);
+                charType.addArgument(arg);
+                accept(Token.RPAREN);
+            }
+
+            charType = (SQLCharacterDataType) parseCharTypeRest(charType);
+
+            if (lexer.token() == Token.HINT) {
+                List<SQLCommentHint> hints = this.parseHints();
+                charType.setHints(hints);
+            }
+
+            return charType;
+        }
         
         if (isCharType(typeName)) {
+            if (lexer.identifierEquals("VARYING")) {
+                typeName += ' ' + lexer.stringVal();
+                lexer.nextToken();
+            }
+
             SQLCharacterDataType charType = new SQLCharacterDataType(typeName);
 
             if (lexer.token() == Token.LPAREN) {
@@ -260,7 +298,6 @@ public class OracleExprParser extends SQLExprParser {
                 throw new ParserException("syntax error : " + lexer.info());
             }
         }
-
 
         SQLDataTypeImpl dataType = new SQLDataTypeImpl(typeName);
         dataType.setDbType(dbType);
@@ -761,6 +798,16 @@ public class OracleExprParser extends SQLExprParser {
         }
 
         accept(Token.RPAREN);
+
+        if (lexer.stringVal().equalsIgnoreCase("IGNORE")) {
+            lexer.nextToken();
+            acceptIdentifier("NULLS");
+            aggregateExpr.setIgnoreNulls(true);
+        } else if (lexer.identifierEquals(FnvHash.Constants.RESPECT)) {
+            lexer.nextToken();
+            acceptIdentifier("NULLS");
+            aggregateExpr.setIgnoreNulls(false);
+        }
         
         if (lexer.identifierEquals(FnvHash.Constants.WITHIN)) {
             lexer.nextToken();
@@ -861,6 +908,11 @@ public class OracleExprParser extends SQLExprParser {
                             }
                         } else {
                             beginExpr = relational();
+                        }
+
+                        final SQLOver.WindowingBound beginBound = parseWindowingBound();
+                        if (beginBound != null) {
+                            over.setWindowingBetweenBeginBound(beginBound);
                         }
 
                         accept(Token.AND);

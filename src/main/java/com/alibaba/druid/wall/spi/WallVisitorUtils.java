@@ -2568,7 +2568,8 @@ public class WallVisitorUtils {
             allow = config.isUpdateAllow();
             denyMessage = "update not allow";
             errorCode = ErrorCode.UPDATE_NOT_ALLOW;
-        } else if (x instanceof OracleMultiInsertStatement) {
+        } else if (x instanceof OracleMultiInsertStatement
+                || x instanceof OracleMultiInsertStatement.InsertIntoClause) {
             allow = true;
             denyMessage = "multi-insert not allow";
             errorCode = ErrorCode.INSERT_NOT_ALLOW;
@@ -2720,6 +2721,12 @@ public class WallVisitorUtils {
                         isWhite = true;
                     }
                 }
+            }
+        }
+
+        if ((!isWhite) && visitor.getDbType() == DbType.oracle) {
+            if (text.startsWith("+")) {
+                isWhite = true;
             }
         }
 

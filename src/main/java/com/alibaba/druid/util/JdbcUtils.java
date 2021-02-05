@@ -19,17 +19,7 @@ import java.io.Closeable;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.URL;
-import java.sql.Blob;
-import java.sql.Clob;
-import java.sql.Connection;
-import java.sql.Date;
-import java.sql.Driver;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.Types;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -93,6 +83,8 @@ public final class JdbcUtils implements JdbcConstants {
             }
 
             x.close();
+        } catch (SQLRecoverableException e) {
+            // skip
         } catch (Exception e) {
             LOG.debug("close connection error", e);
         }
@@ -248,7 +240,7 @@ public final class JdbcUtils implements JdbcConstants {
                     } else {
                         out.print(Long.toString(value));
                     }
-                } else if (type == Types.TIMESTAMP) {
+                } else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
                     out.print(String.valueOf(rs.getTimestamp(columnIndex)));
                 } else if (type == Types.DECIMAL) {
                     out.print(String.valueOf(rs.getBigDecimal(columnIndex)));
@@ -387,6 +379,9 @@ public final class JdbcUtils implements JdbcConstants {
             case Types.TIMESTAMP:
                 return "TIMESTAMP";
 
+            case Types.TIMESTAMP_WITH_TIMEZONE:
+                return "TIMESTAMP_WITH_TIMEZONE";
+
             case Types.TINYINT:
                 return "TINYINT";
 
@@ -524,6 +519,8 @@ public final class JdbcUtils implements JdbcConstants {
             return JdbcConstants.KDB_DRIVER;
         } else if (rawUrl.startsWith("jdbc:polardb")) {
             return JdbcConstants.POLARDB_DRIVER;
+        } else if (rawUrl.startsWith("jdbc:highgo:")) {
+            return "com.highgo.jdbc.Driver";
         } else {
             throw new SQLException("unknown jdbc driver : " + rawUrl);
         }
@@ -629,6 +626,8 @@ public final class JdbcUtils implements JdbcConstants {
             return DbType.kdb;
         } else if (rawUrl.startsWith("jdbc:polardb")) {
             return DbType.polardb;
+        } else if (rawUrl.startsWith("jdbc:highgo:")) {
+            return DbType.highgo;
         } else {
             return null;
         }

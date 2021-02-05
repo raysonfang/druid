@@ -840,7 +840,13 @@ public class SchemaStatVisitor extends SQLASTVisitorAdapter {
             }
 
             Object value;
-            if (item instanceof SQLMethodInvokeExpr) {
+
+            if (item instanceof SQLCastExpr) {
+                item = ((SQLCastExpr) item).getExpr();
+            }
+
+            if (item instanceof SQLMethodInvokeExpr
+                    || item instanceof SQLCurrentTimeExpr) {
                 value = item.toString();
             } else {
                 value = SQLEvalVisitorUtils.eval(dbType, item, parameters, false);
@@ -2476,7 +2482,9 @@ public class SchemaStatVisitor extends SQLASTVisitorAdapter {
                 return false;
             }
         }
-        exp.accept(this);
+        if (exp != null) {
+            exp.accept(this);
+        }
         return false;
     }
     
@@ -2757,7 +2765,6 @@ public class SchemaStatVisitor extends SQLASTVisitorAdapter {
         SQLName tableName = x.getObject();
 
         TableStat tableStat = this.getTableStat(x.getObject());
-        tableStat.incrementDropIndexCount();
 
         SQLName column = x.getColumn();
         if (column != null) {
@@ -2818,6 +2825,10 @@ public class SchemaStatVisitor extends SQLASTVisitorAdapter {
     }
 
     protected final void statExpr(SQLExpr x) {
+        if (x == null) {
+            return;
+        }
+
         Class<?> clazz = x.getClass();
         if (clazz == SQLIdentifierExpr.class) {
             visit((SQLIdentifierExpr) x);

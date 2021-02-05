@@ -238,6 +238,15 @@ public class MySqlOutputVisitor extends SQLASTOutputVisitor implements MySqlASTV
                 print0(ucase ? " WAIT " : " wait ");
                 x.getWaitTime().accept(this);
             }
+
+            if (x.isSkipLocked()) {
+                print0(ucase ? " SKIP LOCKED" : " skip locked");
+            }
+        }
+
+        if (x.isForShare()) {
+            println();
+            print0(ucase ? "FOR SHARE" : "for share");
         }
 
         if (x.isLockInShareMode()) {
@@ -5510,4 +5519,27 @@ public class MySqlOutputVisitor extends SQLASTOutputVisitor implements MySqlASTV
 //        return false;
 //    }
 
+    public boolean visit(MysqlAlterTableAlterCheck x) {
+        print0(ucase ? "ALTER CONSTRAINT " : "alter constraint ");
+
+        SQLName name = x.getName();
+        if (name != null) {
+            name.accept(this);
+            print(' ');
+        }
+
+        Boolean enforced = x.getEnforced();
+        if (enforced != null) {
+            if (enforced) {
+                print0(ucase ? " ENFORCED" : " enforced");
+            } else {
+                print0(ucase ? " NOT ENFORCED" : " not enforced");
+            }
+        }
+        return false;
+    }
+
+    public void endVisit(MysqlAlterTableAlterCheck x) {
+
+    }
 } //
